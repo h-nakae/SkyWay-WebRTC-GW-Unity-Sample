@@ -10,7 +10,7 @@ Unity用のプロジェクトとブラウザ側のプロジェクト
 ### Unity
 1. Sample Sceneを起動
 2. Canvasに付加されているスクリプトにAPIキー、及び、ドメイン名、Peer_idを入力する
-3. 
+ 
 ![image](https://user-images.githubusercontent.com/56616438/124571411-b775d680-de82-11eb-9744-60d9d7d98b83.png)
 ![image](https://user-images.githubusercontent.com/56616438/124571548-d8d6c280-de82-11eb-83fd-3e7c0bcf7880.png)
 
@@ -28,13 +28,9 @@ Unity用のプロジェクトとブラウザ側のプロジェクト
   ![image](https://user-images.githubusercontent.com/56616438/124572627-bf824600-de83-11eb-80dc-71856a4fe019.png)
 
 7. Send Messageボタンを押下すると、サンプルテキストがWebページに届く
-　　ボタン押下↓
-  
-　　![image](https://user-images.githubusercontent.com/56616438/124573757-cc536980-de84-11eb-8ce6-e8b222c1b560.png)
-  
   　ブラウザにメッセージが表示される↓
    
-    ![image](https://user-images.githubusercontent.com/56616438/124574017-058bd980-de85-11eb-9329-0b256f2166d5.png)
+   ![image](https://user-images.githubusercontent.com/56616438/124574974-f3f70180-de85-11eb-94ac-00289e94b478.png)
 
 
 ## License
