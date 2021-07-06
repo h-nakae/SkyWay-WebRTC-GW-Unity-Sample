@@ -6,8 +6,35 @@ Unity用のプロジェクトとブラウザ側のプロジェクト
 - WebRTC MediaStreamからのRTP取り出しについては[SkyWay WebRTC GW](https://github.com/skyway/skyway-webrtc-gateway)を利用しています
 - RTP Mediaの描画については[mrayGStreamerUnity](https://github.com/mrayy/mrayGStreamerUnity)を利用していますので、そちらのリポジトリの指示に従って、gStreamerの設定をお願いします。
 
-# How to use
+## How to use
+### Unity
+1. Sample Sceneを起動
+2. Canvasに付加されているスクリプトにAPIキー、及び、ドメイン名、Peer_idを入力する
+3. 
+![image](https://user-images.githubusercontent.com/56616438/124571411-b775d680-de82-11eb-9744-60d9d7d98b83.png)
+![image](https://user-images.githubusercontent.com/56616438/124571548-d8d6c280-de82-11eb-83fd-3e7c0bcf7880.png)
 
+3. SkyWay-WebRTC-GW を動作させる(リモートのマシンを利用する場合は、その管理者に動作していることを確認する）
+4. 接続される側のWebページをbrowserで開く。（リモートのサーバーを利用する場合は、その管理者にURLを確認する）
+5. Unity Editorで実行する
+6. Webページに表示されているMyIDをコピーして、Unityの画面の上側のテキストボックスに入力し、Callボタンを押下する
+　 （ここでシグナリングが完了する）
+　WEBページ↓
+ 
+  ![image](https://user-images.githubusercontent.com/56616438/124572438-9eb9f080-de83-11eb-9d6f-d0e7bd4877d2.png)
+
+　Unity↓
+ 
+  ![image](https://user-images.githubusercontent.com/56616438/124572627-bf824600-de83-11eb-80dc-71856a4fe019.png)
+
+7. Send Messageボタンを押下すると、サンプルテキストがWebページに届く
+　　ボタン押下↓
+  
+　　![image](https://user-images.githubusercontent.com/56616438/124573757-cc536980-de84-11eb-8ce6-e8b222c1b560.png)
+  
+  　ブラウザにメッセージが表示される↓
+   
+    ![image](https://user-images.githubusercontent.com/56616438/124574017-058bd980-de85-11eb-9329-0b256f2166d5.png)
 
 
 ## License
