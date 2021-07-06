@@ -134,7 +134,7 @@ class RestApi
 	}
 
 	//SkyWay WebRTC GWを動かしているIPアドレスとポート番号
-	const string entryPoint =  "192.168.25.117:8000";//"http://localhost:8000";
+	const string entryPoint =  "http://192.168.25.117:8000";//"http://localhost:8000";
 
 	//Peer Object生成タイミングでボタンを表示するためのイベント定義
 	public delegate void OnOpenHandler();
