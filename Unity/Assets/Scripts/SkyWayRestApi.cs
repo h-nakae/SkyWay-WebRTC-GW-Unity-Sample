@@ -6,6 +6,8 @@ using UniRx;
 using UnityEngine;
 using MiniJSON;
 using UnityEngine.UI;
+using UnityEngine.Networking;
+ 
 
 //Unityから直接叩かれるクラス
 public class SkyWayRestApi : MonoBehaviour
@@ -22,6 +24,10 @@ public class SkyWayRestApi : MonoBehaviour
 
 	void Start()
 	{
+		// initialize
+		SkyWayRestApi skyWayRestApi = this.gameObject.GetComponent<SkyWayRestApi>();
+		MyConnectionInfo._entryPoint = skyWayRestApi.domain;
+
 		//SkyWay WebRTC Gateway操作用インスタンス生成
 		var _restApi = new RestApi(key, domain, peerId, turn);
 
@@ -51,12 +57,70 @@ public class SkyWayRestApi : MonoBehaviour
         //UdpClientを閉じる
         //udp.Close();
 	}
+
+	public void close() {
+		StartCoroutine(closeEnumrator());
+	}
+
+
+	//終了処理
+	IEnumerator closeEnumrator()
+	{
+		var closeDataURL = string.Format("http://{0}/data/connections/{1}", MyConnectionInfo._entryPoint, MyConnectionInfo._data_connection_id);
+		var closePeerURL = string.Format("http://{0}/peers/{1}?token={2}", MyConnectionInfo._entryPoint, MyConnectionInfo._peerId, MyConnectionInfo._peerToken);
+		
+		Debug.Log("close data url: " + closeDataURL);
+		Debug.Log("close peer url: " + closePeerURL);
+
+		Debug.Log("berfore delete data");
+		UnityWebRequest request = UnityWebRequest.Delete(closeDataURL);
+		yield return request.SendWebRequest();
+ 
+        // 通信エラーチェック
+        if (request.isNetworkError) {
+            Debug.Log(request.error);
+        } else {
+            if (request.responseCode == 200) {
+                // UTF8文字列として取得する
+                string text = request.downloadHandler.text;
+				Debug.Log("data 200: " + text);
+ 
+                // バイナリデータとして取得する
+                byte[] results = request.downloadHandler.data;
+            }
+        }
+
+		UnityWebRequest peerRequest = UnityWebRequest.Delete(closePeerURL);
+		yield return peerRequest.SendWebRequest();
+ 
+        // 通信エラーチェック
+        if (peerRequest.isNetworkError) {
+            Debug.Log(peerRequest.error);
+        } else {
+            if (peerRequest.responseCode == 200) {
+                // UTF8文字列として取得する
+                string text = peerRequest.downloadHandler.text;
+				Debug.Log("peer 200: " + text);
+ 
+                // バイナリデータとして取得する
+                byte[] results = peerRequest.downloadHandler.data;
+            }
+        }
+	}
 }
 
 
 static public class remoteHostInfo{
 	static public int _remotePort;
 	static public string _remotehost;
+}
+
+static public class MyConnectionInfo
+{
+	static public string _entryPoint;
+	static public string _data_connection_id;
+	static public string _peerId;
+	static public string _peerToken;
 }
 
 //実際にSkyWay WebRTC Gatwayを操作するクラス
@@ -115,18 +179,6 @@ class RestApi
 		public string serialization;
 	}
 
-	// [System.Serializable]
-	// class DcInit
-	// {
-	// 	public bool ordered;
-	// 	public int maxPacketLifeTime;
-	// 	public int maxRetransmits;
-	// 	public string protocol;
-	// 	public bool negotiated;
-	// 	public int id;
-	// 	public string priority;
-	// }
-
 	[System.Serializable]
 	class Params
 	{
@@ -140,20 +192,12 @@ class RestApi
 	public delegate void OnOpenHandler();
 	public event OnOpenHandler OnOpen;
 
-	//動画が流れ始めたときにGUIを変更するためのイベント定義
-	public delegate void OnStreamHandler();
-	public event OnStreamHandler OnStream;
-	
-	private string _peerId;
-	private string _peerToken;
-	private string _media_connection_id;
-	private string _data_connection_id;
 
 	private DataCallParams _CreateDataCallParams(string targetId, string data_id)
 	{
 		var dataCallParams = new DataCallParams();
-		dataCallParams.peer_id = _peerId;
-		dataCallParams.token = _peerToken;
+		dataCallParams.peer_id = MyConnectionInfo._peerId;
+		dataCallParams.token = MyConnectionInfo._peerToken;
 		dataCallParams.target_id = targetId;
 
 		var options = new Options();
@@ -199,12 +243,12 @@ class RestApi
 			Debug.Log("dddd");
 			var res = Json.Deserialize((string) y) as Dictionary<string, object>;
 			var parameters = (IDictionary) res["params"];
-			_data_connection_id = (string) parameters["data_connection_id"];			
+			MyConnectionInfo._data_connection_id = (string) parameters["data_connection_id"];			
 
 			//この時点でSkyWay WebRTC GWは接続処理を始めている
 			//発信側でやることはもうないが、相手側が応答すると自動で動画が流れ始めるため、
 			//STREAMイベントを取って流れ始めたタイミングを確認しておくとボタン表示等を消すのに使える
-			string url = string.Format("{0}/data/connections/{1}/events", entryPoint, _data_connection_id);
+			string url = string.Format("{0}/data/connections/{1}/events", entryPoint, MyConnectionInfo._data_connection_id);
 
 			return ObservableWWW.Get(url);
 		}).Where(z =>
@@ -224,16 +268,7 @@ class RestApi
 			}, ex => { Debug.LogError(ex); });
 	}
 
-	//終了処理
-	public void Close()
-	{
-		var closeMediaURL = string.Format("{0}/media/connections/{1}", entryPoint, _media_connection_id);
-		var closePeerURL = string.Format("{0}/peers/{1}?token={2}", entryPoint, _peerId, _peerToken);
-		//DELETE MethodでAPIを叩くとSkyWay WebRTC GW内のオブジェクトが開放される
-		//のだけど、ObservableWWWにDELETEメソッドが実装されていない…？？？
-		//ObservableWWW.Delete(closeMediaURL);
-		//ObservableWWW.Delete(closePeerURL);
-	}
+	
 
 	private void _OnDataOpen()
 	{
@@ -243,7 +278,7 @@ class RestApi
 		//イベントを監視する
 		//今回は着呼イベントしか監視していないが、他にもDataChannel側の着信処理等のイベントも来る
 		//これはプログラム起動中はずーっと監視しておくのが正しい。なのでRepeatする。
-		var longPollUrl = string.Format("{0}/peers/{1}/events?token={2}", entryPoint, _peerId, _peerToken);
+		var longPollUrl = string.Format("{0}/peers/{1}/events?token={2}", entryPoint, MyConnectionInfo._peerId, MyConnectionInfo._peerToken);
 		ObservableWWW.Get(longPollUrl).OnErrorRetry((Exception ex) => { }).Repeat().Where(wx =>
 		{
 			Debug.Log(wx);
@@ -303,8 +338,9 @@ class RestApi
 				var response_j = Json.Deserialize(sx) as Dictionary<string, object>;
 				var parameters_s = (IDictionary) response_j["params"];
 				//正式決定したpeer_idとtokenを記録しておく
-				_peerId = (string) parameters_s["peer_id"];
-				_peerToken = (string) parameters_s["token"];
+				MyConnectionInfo._peerId = (string) parameters_s["peer_id"];
+				MyConnectionInfo._peerToken = (string) parameters_s["token"];
+				
 				//SkyWayサーバと繋がったときの処理を始める
 				_OnDataOpen();
 			}, ex =>
