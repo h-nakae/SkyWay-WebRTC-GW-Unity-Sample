@@ -58,6 +58,9 @@ public class SkyWayRestApi : MonoBehaviour
         //udp.Close();
 	}
 
+	/// <summary>
+	/// DataChannelとPeer（シグナリング情報）の削除
+	/// </summary>
 	public void close() {
 		StartCoroutine(closeEnumrator());
 	}
