@@ -7,6 +7,58 @@ using UnityEngine;
 using MiniJSON;
 using UnityEngine.UI;
 
+//Unityから直接叩かれるクラス
+public class SkyWayRestApi : MonoBehaviour
+{
+	public Button ConnectButton;
+	//public Button CloseButton;
+	public InputField TargetIdField;
+	public string key;
+	public string domain;
+	public string peerId;
+	public bool turn;
+
+	private System.Net.Sockets.UdpClient _udp = new System.Net.Sockets.UdpClient();
+
+	void Start()
+	{
+		//SkyWay WebRTC Gateway操作用インスタンス生成
+		var _restApi = new RestApi(key, domain, peerId, turn);
+
+		//SkyWayサーバと接続されたときに発火させるイベント
+		_restApi.OnOpen += () =>
+		{
+			ConnectButton.onClick.AsObservable().Select(x => TargetIdField.text).Where(x => x != "").Subscribe(x =>
+			{
+				// 接続相手のPeer IDをCallする。接続完了後はUDPによるテキスト送信が可能
+				_restApi.DataCall(x);
+			});
+		};	
+	}
+
+	/// <summary>
+	/// サンプル用UDP送信メソッド
+	/// </summary>
+	public void sendText()
+	{
+        //UdpClientオブジェクトを作成する
+        string sendMsg = "test message 1234,5678";
+        byte[] sendBytes = System.Text.Encoding.UTF8.GetBytes(sendMsg);
+
+        //リモートホストを指定してデータを送信する
+        _udp.Send(sendBytes, sendBytes.Length, remoteHostInfo._remotehost, remoteHostInfo._remotePort);
+
+        //UdpClientを閉じる
+        //udp.Close();
+	}
+}
+
+
+static public class remoteHostInfo{
+	static public int _remotePort;
+	static public string _remotehost;
+}
+
 //実際にSkyWay WebRTC Gatwayを操作するクラス
 class RestApi
 {
@@ -20,29 +72,6 @@ class RestApi
 		public bool turn;
 	}
 
-	//JSON Object定義
-	[System.Serializable]
-	class VideoParams
-	{
-		//今回はSDP上にH264で接続希望するという趣旨を入れるためだけにこのパラメータを作る
-		//ビデオを送り返すときはもうちょっとフィールドが増える
-		public int band_width = 0;
-		public string codec = "H264";
-		public string media_id = "hoge";//ビデオを送り返すときはPOST /mediaで作成したIDをいれる
-		public int payload_type = 96;
-		public int sampling_rate = 90000;
-	}
-
-	//JSON Object定義
-	[System.Serializable]
-	class Constraints
-	{
-		public bool video = false;
-		public bool videoReceiveEnabled = true;
-		public bool audio = false;
-		public bool audioReceiveEnabled = false;
-		public VideoParams video_params = new VideoParams();
-	}
 
 	//JSON Object定義
 	[System.Serializable]
@@ -50,6 +79,13 @@ class RestApi
 	{
 		public Redirect video;
 		//public Redirect audio;//audioを受信するときはこれも入れる
+	}
+
+	[System.Serializable]
+	class DataRedirectParams
+	{
+		public string ip_v4;
+		public ushort port;
 	}
 
 	//JSON Object定義
@@ -60,27 +96,45 @@ class RestApi
 		public ushort port;
 	}
 
-	//JSON Object定義
 	[System.Serializable]
-	class CallParams
+	class DataCallParams
 	{
 		public string peer_id;
 		public string token;
+		public Options options;
 		public string target_id;
-		public Constraints constraints;
-		public RedirectParams redirect_params;
+
+		public Params @params;
+		public DataRedirectParams redirect_params;
 	}
 
-	//JSON Object定義
 	[System.Serializable]
-	class AnswerParams
+	class Options
 	{
-		public Constraints constraints;
-		public RedirectParams redirect_params;
+		public string metadata;
+		public string serialization;
+	}
+
+	// [System.Serializable]
+	// class DcInit
+	// {
+	// 	public bool ordered;
+	// 	public int maxPacketLifeTime;
+	// 	public int maxRetransmits;
+	// 	public string protocol;
+	// 	public bool negotiated;
+	// 	public int id;
+	// 	public string priority;
+	// }
+
+	[System.Serializable]
+	class Params
+	{
+		public string data_id;
 	}
 
 	//SkyWay WebRTC GWを動かしているIPアドレスとポート番号
-	const string entryPoint = "http://localhost:8000";
+	const string entryPoint =  "192.168.25.117:8000";//"http://localhost:8000";
 
 	//Peer Object生成タイミングでボタンを表示するためのイベント定義
 	public delegate void OnOpenHandler();
@@ -93,106 +147,80 @@ class RestApi
 	private string _peerId;
 	private string _peerToken;
 	private string _media_connection_id;
+	private string _data_connection_id;
 
-	//POST /media/connections で渡すJSON Objectのパラメータ作成
-	private CallParams _CreateCallParams(string targetId)
+	private DataCallParams _CreateDataCallParams(string targetId, string data_id)
 	{
-		var videoRedirect = new Redirect();
-		videoRedirect.ip_v4 = "127.0.0.1";
-		videoRedirect.port = 7000;
-		var redirectParams = new RedirectParams();
-		redirectParams.video = videoRedirect;
-		var constraints = new Constraints();
-		var callParams = new CallParams();
-		callParams.peer_id = _peerId;
-		callParams.token = _peerToken;
-		callParams.target_id = targetId;
-		callParams.constraints = constraints;
-		callParams.redirect_params = redirectParams;
-		return callParams;
+		var dataCallParams = new DataCallParams();
+		dataCallParams.peer_id = _peerId;
+		dataCallParams.token = _peerToken;
+		dataCallParams.target_id = targetId;
+
+		var options = new Options();
+		options.serialization = "NONE";//"BINARY";
+
+		dataCallParams.options = options;
+		var para = new Params();
+		para.data_id = data_id;
+		dataCallParams.@params = para;
+		
+		var dataRedirectParams = new DataRedirectParams();
+		dataRedirectParams.ip_v4 = "127.0.0.1";
+		dataRedirectParams.port = 7000;
+		dataCallParams.redirect_params = dataRedirectParams;
+
+		return dataCallParams;
 	}
 
-	//POST /media/connections/{media_connection_id}/answer で渡すJSON Objectのパラメータ作成
-	private AnswerParams _CreateAnswerParams()
+	public void DataCall(string targetId)
 	{
-		var videoRedirect = new Redirect();
-		videoRedirect.ip_v4 = "127.0.0.1";
-		videoRedirect.port = 7000;
-		var redirectParams = new RedirectParams();
-		redirectParams.video = videoRedirect;
-		var constraints = new Constraints();
-		var answerParams = new AnswerParams();
-		answerParams.constraints = constraints;
-		answerParams.redirect_params = redirectParams;
-		return answerParams;
-	}
-
-	//Unity側からの接続処理
-	public void Call(string targetId)
-	{
-		var callParams = _CreateCallParams(targetId);
-		string callParamsString = JsonUtility.ToJson(callParams);
-		byte[] callParamsBytes = Encoding.UTF8.GetBytes(callParamsString);
-		//SkyWay WebRTC GWのMediaStream確立用APIを叩く
-		ObservableWWW.Post(entryPoint + "/media/connections", callParamsBytes).SelectMany(x =>
+		Debug.Log("aaaaa");
+		var dummy = new Options();
+		string dmyString = JsonUtility.ToJson(dummy);
+		byte[] dummyBytes = Encoding.UTF8.GetBytes(dmyString);
+		ObservableWWW.Post(entryPoint + "/data", dummyBytes).SelectMany(x =>
 		{
 			var response = Json.Deserialize(x) as Dictionary<string, object>;
-			var parameters = (IDictionary) response["params"];
-			_media_connection_id = (string) parameters["media_connection_id"];
-			//この時点でSkyWay WebRTC GWは接続処理を始めている
-			//発信側でやることはもうないが、相手側が応答すると自動で動画が流れ始めるため、
-			//STREAMイベントを取って流れ始めたタイミングを確認しておくとボタン表示等を消すのに使える
-			var url = string.Format("{0}/media/connections/{1}/events", entryPoint, _media_connection_id);
-			return ObservableWWW.Get(url);
-		}).Where(x =>
-		{
-			//STREAMイベント以外はいらないのでフィルタ
-			var res = Json.Deserialize((string) x) as Dictionary<string, object>;
-			return (string) res["event"] == "STREAM";
-		}).First().Subscribe(//今回の用途だと最初の一回だけ取れれば良い
-			x =>
-			{
-				//ビデオが正常に流れ始める
-				//今回はmrayGStreamerUnityで受けるだけだが、ビデオを送り返したい場合はこのタイミングで
-				//SkyWay WebRTC GW宛にRTPパケットの送信を開始するとよい
-				OnStream();
-				Debug.Log("video has beed started redirecting to " + callParams.redirect_params.video.ip_v4 + " " +
-				          callParams.redirect_params.video.port);
-			}, ex => { Debug.LogError(ex); });
-	}
+			var data_id = (string) response["data_id"];
+			remoteHostInfo._remotehost = (string)response["ip_v4"];
+			var portNum = response["port"];
+			remoteHostInfo._remotePort = Convert.ToInt32(portNum);
 
-	//相手側からの接続があった場合に応答する処理
-	//現状自動で無条件で接続確立している
-	private void _Answer(string media_connection_id)
-	{
-		var answerParams = _CreateAnswerParams();
-		string answerParamsString = JsonUtility.ToJson(answerParams);
-		Debug.Log(answerParamsString);
-		byte[] answerParamsBytes = Encoding.UTF8.GetBytes(answerParamsString);
-		var url = string.Format("{0}/media/connections/{1}/answer", entryPoint, media_connection_id);
-		//SkyWay WebRTC GWのMediaStream応答用APIを叩く
-		ObservableWWW.Post(url, answerParamsBytes).SelectMany(x =>
+			var callParams = _CreateDataCallParams(targetId, data_id.ToString());
+			string callParamsString = JsonUtility.ToJson(callParams);
+			byte[] callParamsBytes = Encoding.UTF8.GetBytes(callParamsString);
+
+			//SkyWay WebRTC GWのデータ送信確立用APIを叩く
+			Debug.Log(callParams);
+			Debug.Log("cccc");
+			return ObservableWWW.Post(entryPoint + "/data/connections", callParamsBytes);
+		}).SelectMany(y => 
 		{
+			Debug.Log("dddd");
+			var res = Json.Deserialize((string) y) as Dictionary<string, object>;
+			var parameters = (IDictionary) res["params"];
+			_data_connection_id = (string) parameters["data_connection_id"];			
+
 			//この時点でSkyWay WebRTC GWは接続処理を始めている
 			//発信側でやることはもうないが、相手側が応答すると自動で動画が流れ始めるため、
 			//STREAMイベントを取って流れ始めたタイミングを確認しておくとボタン表示等を消すのに使える
-			//あと応答の場合はmedia_connection_idはもう知っているので別にJSONをParseする必要はない
-			var eventUrl = string.Format("{0}/media/connections/{1}/events", entryPoint, media_connection_id);
-			return ObservableWWW.Get(eventUrl);
-		}).Where(x =>
+			string url = string.Format("{0}/data/connections/{1}/events", entryPoint, _data_connection_id);
+
+			return ObservableWWW.Get(url);
+		}).Where(z =>
 		{
+			Debug.Log("eeeee");
 			//STREAMイベント以外はいらないのでフィルタ
-			var res = Json.Deserialize((string) x) as Dictionary<string, object>;
-			return (string) res["event"] == "STREAM";
+			var res = Json.Deserialize((string) z) as Dictionary<string, object>;
+			return (string) res["event"] == "OPEN";
 		}).First().Subscribe(//今回の用途だと最初の一回だけ取れれば良い
 			x =>
 			{
 				//ビデオが正常に流れ始める
 				//今回はmrayGStreamerUnityで受けるだけだが、ビデオを送り返したい場合はこのタイミングで
 				//SkyWay WebRTC GW宛にRTPパケットの送信を開始するとよい
-				OnStream();
-				Debug.Log("video has beed started redirecting to " + answerParams.redirect_params.video.ip_v4 + " " +
-				          answerParams.redirect_params.video.port);
+				//OnStream();
+				Debug.Log("text has beed started redirecting");
 			}, ex => { Debug.LogError(ex); });
 	}
 
@@ -206,9 +234,8 @@ class RestApi
 		//ObservableWWW.Delete(closeMediaURL);
 		//ObservableWWW.Delete(closePeerURL);
 	}
-	
-	//SkyWayサーバと繋がった時点での処理
-	private void _OnOpen()
+
+	private void _OnDataOpen()
 	{
 		//UnityのGUI処理をするためにイベントを返してやる
 		OnOpen();
@@ -228,13 +255,23 @@ class RestApi
 		{
 			//相手からCallがあったときに発火。応答処理を始める
 			var response = Json.Deserialize(sx) as Dictionary<string, object>;
-			var callParameters = (IDictionary) response["call_params"];
-			_media_connection_id = (string) callParameters["media_connection_id"];
+
+			// ★TODO DataChannelへの変更対応 一旦は受信処理は実装しない
+			// var callParameters = (IDictionary) response["call_params"];
+			// _data_connection_id = (string) callParameters["data_connection_id"];
 			//応答処理をする
-			_Answer(_media_connection_id);
+			//_DataAnswer(_data_connection_id);
 		}, ex => { Debug.LogError(ex); });
 	}
 
+	/// <summary>
+	/// Skywway WebRTC Gateway経由でシグナリング
+	/// peeridとpeertokenを取得してローカルに保持
+	/// </summary>
+	/// <param name="key">APIキー</param>
+	/// <param name="domain">GWのドメイン</param>
+	/// <param name="peerId">自分のpeerID</param>
+	/// <param name="turn">turnを有効化するか</param>
 	public RestApi(string key, string domain, string peerId, bool turn)
 	{
 		var peerParams = new PeerOptions();
@@ -269,7 +306,7 @@ class RestApi
 				_peerId = (string) parameters_s["peer_id"];
 				_peerToken = (string) parameters_s["token"];
 				//SkyWayサーバと繋がったときの処理を始める
-				_OnOpen();
+				_OnDataOpen();
 			}, ex =>
 			{
 				//ここが発火する場合は多分peer_idやtoken等が間違っている
@@ -290,57 +327,3 @@ class RestApi
 	}
 }
 
-//Unityから直接叩かれるクラス
-public class SkyWayRestApi : MonoBehaviour
-{
-	public Button ConnectButton;
-	//public Button CloseButton;
-	public InputField TargetIdField;
-	public string key;
-	public string domain;
-	public string peerId;
-	public bool turn;
-
-	void Start()
-	{
-		//SkyWay WebRTC Gateway操作用インスタンス生成
-		var _restApi = new RestApi(key, domain, peerId, turn);
-	
-		//ボタンとラベルは最初隠しとく
-		ConnectButton.gameObject.SetActive(false);
-		TargetIdField.gameObject.SetActive(false);
-		//CloseButton.gameObject.SetActive(false);
-
-		//SkyWayサーバと接続されたときに発火させるイベント
-		_restApi.OnOpen += () =>
-		{
-			//ボタンとラベルを表示して、接続相手のPeer IDが入力されたらCallする
-			ConnectButton.gameObject.SetActive(true);
-			TargetIdField.gameObject.SetActive(true);
-			ConnectButton.onClick.AsObservable().Select(x => TargetIdField.text).Where(x => x != "").Subscribe(x =>
-			{
-				_restApi.Call(x);
-			});
-		};
-
-		//MediaStreamが流れ始めたときに発火させるイベント
-		//正確にはSRTPパケットではなくSTUNパケットが来たときに発火するので、
-		//このイベントを受けてから動画を流し始めると良い
-		//相手側からのメディアはすぐ流れ始めることが予想されるので、
-		//初っ端のkeyframeを受け取りそこねないように、再生待機は発信または着信時に開始したほうが良い
-		_restApi.OnStream += () =>
-		{
-			//ボタン等はもういらないので消す
-			ConnectButton.gameObject.SetActive(false);
-			TargetIdField.gameObject.SetActive(false);
-			ConnectButton.onClick.RemoveAllListeners();
-			//切断ボタンはここから出す
-			//ObservableWWWにDELETEメソッドが無いことに気づいたのでとりあえずマスクしておく
-			//CloseButton.onClick.AsObservable().Subscribe(x => { _restApi.Close(); });
-		};	
-	}
-
-	void Update()
-	{
-	}
-}
