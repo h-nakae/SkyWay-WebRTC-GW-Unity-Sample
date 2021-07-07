@@ -31,6 +31,14 @@ Unity用のプロジェクトとブラウザ側のプロジェクト
   　ブラウザにメッセージが表示される↓
    
    ![image](https://user-images.githubusercontent.com/56616438/124574974-f3f70180-de85-11eb-94ac-00289e94b478.png)
+   
+8. Close Connection ボタンを押下してシグナリングの接続を切る
+　※これをしないと次の接続時にエラーが出て繋がらない
+ ![image](https://user-images.githubusercontent.com/56616438/124682358-87234c00-df05-11eb-93ae-c3f84d341eae.png)
+
+
+## 備考
+見るべきスクリプトはCanvasオブジェクトに貼られているSkywayRestApi.csのみ。
 
 
 ## License
